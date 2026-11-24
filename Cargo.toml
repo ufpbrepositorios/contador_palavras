@@ -1,7 +1,9 @@
 [package]
 name = "contador_palavras"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 
 [dependencies]
 regex = "1"
+quick-xml = "0.37"
+zip = "2"
