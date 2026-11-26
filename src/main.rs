@@ -226,11 +226,14 @@ fn detectar_formato(caminho: &Path) -> FormatoArquivo {
 fn main() {
     let programa = env::args()
         .next()
-        .unwrap_or_else(|| "contador_palavras".to_string());
+        .unwrap_or_else(|| "wordcounter".to_string());
 
     let caminho_str = env::args().nth(1).unwrap_or_else(|| {
         eprintln!(
-            "Uso: {} <caminho/do/arquivo.(txt|pdf|odt|docx)>",
+            "Uso: {} <caminho/do/arquivo.(txt|pdf|odt|docx)>
+
+Reportar erros para <douglas@sti.ufpb.br>.
+<https://github.com/ufpbrepositorios/contador_palavras>",
             programa
         );
         process::exit(1);
