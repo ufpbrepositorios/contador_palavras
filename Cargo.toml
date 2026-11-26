@@ -1,6 +1,6 @@
 [package]
-name = "contador_palavras"
-version = "0.1.0"
+name = "wordcounter"
+version = "0.1.1"
 edition = "2024"
 
 [dependencies]
