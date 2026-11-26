@@ -264,7 +264,7 @@ fn imprimir_ajuda(programa: &str, bloqueadas: &HashSet<&str>) {
         "Uso: {0} -f <arquivo.(txt|pdf|odt|docx)> [-v]
      {0} -h
 
-Contador de frequência de palavras (ignora pronomes, artigos e palavras com menos de 3 letras).
+Contador de frequência de palavras (ignora pronomes, artigos e outras palavras com menos de 3 letras).
 
 Opções:
   -f <arquivo>   Caminho do arquivo de entrada a ser processado
