@@ -1,10 +1,7 @@
-# contador_palavras
-Contator de palavras
+# Contador de palavras
 
 ## Instalação do Rust
-
-Requer Cargo 
-
+---
 ```bash
 sudo apt install -y cargo rustup mingw-w64
 rustup update
@@ -12,22 +9,29 @@ rustup default stable
 ```
 
 ## Como compilar
+---
+Na compilação, o build.sh verifica as depenências e instala se necessário.
+
 - Compilando no linux
+./build.sh -[l|w]
 ```bash
-cargo build
+./build.sh -l 
 ```
 
-- Compilando para windows
-```bash
-sudo apt install -y mingw-w64
-rustup target add x86_64-pc-windows-gnu
-cargo build --release --target x86_64-pc-windows-gnu
-```
-
-## Como executar
+## Exemplo
+---
 
 ```bash
-cargo run --release -- /home/douglas/tmp/arquivo.txt
+cat << 'EOF' > "arquivo.txt"
+joao joao jose maria maria maria maria antonio
+EOF
+wordcounter arquivo.txt
 ```
+Resultado
+```bash
+  4 maria
+  2 joao
+  1 antonio
+  1 jose
 
-
+```
