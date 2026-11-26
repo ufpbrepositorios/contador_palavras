@@ -5,11 +5,13 @@ use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Read};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process;
 use zip::ZipArchive;
 
 const TAMANHO_BUFFER: usize = 64 * 1024;
+const TOP_RANKING: usize = 30;
+const COLUNAS_STOP_WORDS: usize = 6;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum FormatoArquivo {
@@ -17,6 +19,24 @@ enum FormatoArquivo {
     Pdf,
     Odt,
     Docx,
+}
+
+impl FormatoArquivo {
+    fn rotulo(self) -> &'static str {
+        match self {
+            FormatoArquivo::Txt => "TXT",
+            FormatoArquivo::Pdf => "PDF",
+            FormatoArquivo::Odt => "ODT",
+            FormatoArquivo::Docx => "DOCX",
+        }
+    }
+}
+
+#[derive(Debug)]
+struct Opcoes {
+    arquivo: Option<PathBuf>,
+    verbose: bool,
+    ajuda: bool,
 }
 
 fn stop_words() -> HashSet<&'static str> {
@@ -50,6 +70,22 @@ fn stop_words() -> HashSet<&'static str> {
     ]
     .into_iter()
     .collect()
+}
+
+fn imprimir_stop_words(bloqueadas: &HashSet<&str>) {
+    let mut palavras: Vec<&&str> = bloqueadas.iter().collect();
+    palavras.sort_unstable();
+
+    println!("\nStop words ignoradas ({}):", palavras.len());
+    for (idx, palavra) in palavras.iter().enumerate() {
+        print!("{:<12}", palavra);
+        if (idx + 1) % COLUNAS_STOP_WORDS == 0 {
+            println!();
+        }
+    }
+    if palavras.len() % COLUNAS_STOP_WORDS != 0 {
+        println!();
+    }
 }
 
 /// Converte `origem` para minúsculas escrevendo diretamente em `destino`
@@ -223,43 +259,139 @@ fn detectar_formato(caminho: &Path) -> FormatoArquivo {
     }
 }
 
-fn main() {
-    let programa = env::args()
-        .next()
-        .unwrap_or_else(|| "wordcounter".to_string());
+fn imprimir_ajuda(programa: &str, bloqueadas: &HashSet<&str>) {
+    println!(
+        "Uso: {0} -f <arquivo.(txt|pdf|odt|docx)> [-v]
+     {0} -h
 
-    let caminho_str = env::args().nth(1).unwrap_or_else(|| {
-        eprintln!(
-            "Uso: {} <caminho/do/arquivo.(txt|pdf|odt|docx)>
+Contador de frequência de palavras (ignora pronomes, artigos e palavras com menos de 3 letras).
+
+Opções:
+  -f <arquivo>   Caminho do arquivo de entrada a ser processado
+  -v, --verbose  Exibe informações detalhadas do processamento em stderr
+  -h, --help     Exibe esta mensagem de ajuda, a lista de stop words e sai
+
+Exemplos:
+  {0} -f arquivo.txt
+  {0} -f relatorio.pdf -v
+  {0} -h
 
 Reportar erros para <douglas@sti.ufpb.br>.
 <https://github.com/ufpbrepositorios/contador_palavras>",
+        programa
+    );
+
+    imprimir_stop_words(bloqueadas);
+}
+
+fn parsear_argumentos<I>(args: I) -> Result<Opcoes, String>
+where
+    I: IntoIterator<Item = String>,
+{
+    let mut iter = args.into_iter();
+    let _programa = iter.next();
+
+    let mut opcoes = Opcoes {
+        arquivo: None,
+        verbose: false,
+        ajuda: false,
+    };
+
+    while let Some(arg) = iter.next() {
+        match arg.as_str() {
+            "-h" | "--help" => {
+                opcoes.ajuda = true;
+            }
+            "-v" | "--verbose" => {
+                opcoes.verbose = true;
+            }
+            "-f" => {
+                let valor = iter
+                    .next()
+                    .ok_or_else(|| "A opção '-f' exige um caminho de arquivo.".to_string())?;
+                if valor.trim().is_empty() {
+                    return Err("O caminho informado para '-f' está vazio.".to_string());
+                }
+                opcoes.arquivo = Some(PathBuf::from(valor));
+            }
+            outro if outro.starts_with("-f") && outro.len() > 2 => {
+                let valor = &outro[2..];
+                opcoes.arquivo = Some(PathBuf::from(valor));
+            }
+            outro => {
+                return Err(format!(
+                    "Parâmetro desconhecido '{}'. Use '-h' para ver as opções disponíveis.",
+                    outro
+                ));
+            }
+        }
+    }
+
+    Ok(opcoes)
+}
+
+fn main() {
+    let raw_args: Vec<String> = env::args().collect();
+    let programa = raw_args
+        .first()
+        .cloned()
+        .unwrap_or_else(|| "wordcounter".to_string());
+
+    if raw_args.len() <= 1 {
+        eprintln!(
+            "Erro: nenhum parâmetro informado. Use '{} -f <arquivo>' ou '{} -h' para ajuda.",
+            programa, programa
+        );
+        process::exit(1);
+    }
+
+    let opcoes = parsear_argumentos(raw_args).unwrap_or_else(|err| {
+        eprintln!("Erro nos parâmetros: {}", err);
+        process::exit(1);
+    });
+
+    let bloqueadas = stop_words();
+
+    if opcoes.ajuda {
+        imprimir_ajuda(&programa, &bloqueadas);
+        return;
+    }
+
+    let caminho = opcoes.arquivo.unwrap_or_else(|| {
+        eprintln!(
+            "Erro: o parâmetro '-f <arquivo>' é obrigatório. Use '{} -h' para ajuda.",
             programa
         );
         process::exit(1);
     });
 
-    let caminho = Path::new(&caminho_str);
+    let caminho_str = caminho.display().to_string();
+    let formato = detectar_formato(&caminho);
     let re = Regex::new(r"\p{L}{3,}").expect("Regex inválido");
-    let bloqueadas = stop_words();
 
-    let frequencias = match detectar_formato(caminho) {
-        FormatoArquivo::Pdf => contar_palavras_pdf(caminho, &re, &bloqueadas).unwrap_or_else(|err| {
+    if opcoes.verbose {
+        eprintln!("[verbose] Arquivo: {}", caminho_str);
+        eprintln!("[verbose] Formato detectado: {}", formato.rotulo());
+        eprintln!("[verbose] Stop words carregadas: {}", bloqueadas.len());
+    }
+
+    let frequencias = match formato {
+        FormatoArquivo::Pdf => contar_palavras_pdf(&caminho, &re, &bloqueadas).unwrap_or_else(|err| {
             eprintln!("Erro ao processar PDF '{}': {}", caminho_str, err);
             process::exit(1);
         }),
-        FormatoArquivo::Odt => contar_palavras_odt(caminho, &re, &bloqueadas).unwrap_or_else(|err| {
+        FormatoArquivo::Odt => contar_palavras_odt(&caminho, &re, &bloqueadas).unwrap_or_else(|err| {
             eprintln!("Erro ao processar ODT '{}': {}", caminho_str, err);
             process::exit(1);
         }),
         FormatoArquivo::Docx => {
-            contar_palavras_docx(caminho, &re, &bloqueadas).unwrap_or_else(|err| {
+            contar_palavras_docx(&caminho, &re, &bloqueadas).unwrap_or_else(|err| {
                 eprintln!("Erro ao processar DOCX '{}': {}", caminho_str, err);
                 process::exit(1);
             })
         }
         FormatoArquivo::Txt => {
-            let arquivo = File::open(caminho).unwrap_or_else(|err| {
+            let arquivo = File::open(&caminho).unwrap_or_else(|err| {
                 eprintln!("Erro ao abrir '{}': {}", caminho_str, err);
                 process::exit(1);
             });
@@ -271,10 +403,20 @@ Reportar erros para <douglas@sti.ufpb.br>.
         }
     };
 
+    if opcoes.verbose {
+        let total_ocorrencias: usize = frequencias.values().sum();
+        eprintln!(
+            "[verbose] Palavras únicas (após filtros): {} | Total de ocorrências: {}",
+            frequencias.len(),
+            total_ocorrencias
+        );
+        eprintln!("[verbose] Exibindo até as {} palavras mais frequentes:", TOP_RANKING);
+    }
+
     let mut ranking: Vec<(String, usize)> = frequencias.into_iter().collect();
     ranking.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
 
-    for (palavra, contagem) in ranking.into_iter().take(30) {
+    for (palavra, contagem) in ranking.into_iter().take(TOP_RANKING) {
         println!("{:7} {}", contagem, palavra);
     }
 }
