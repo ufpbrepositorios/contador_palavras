@@ -6,7 +6,7 @@ Contator de palavras
 Requer Cargo 
 
 ```bash
-sudo apt install -y cargo rustup
+sudo apt install -y cargo rustup mingw-w64
 rustup update
 rustup default stable
 ```

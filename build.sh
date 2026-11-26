@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash
 # Contador de palavras em um arquivo txt ou docx
 set -euo pipefail
 
@@ -34,19 +34,19 @@ sudo apt-get install -y rustup mingw-w64
 rustup update
 rustup default stable
 
+# Adiciona os targets necessários
+[ -z "$(rustup target list | grep x86_64-unknown-linux-gnu)" ] && rustup target add x86_64-unknown-linux-gnu
+[ -z "$(rustup target list | grep x86_64-pc-windows-gnu)" ] && rustup target add x86_64-pc-windows-gnu  
+
 if [ "$WIN" = true ] ; then
   # compila para windows
   TARGET="$TARGET_WINDOWS"
   OUT_DIR="${OUT_DIR}/windows"
   BIN_NAME="${BIN_NAME}.exe"
-  rustup target remove "$TARGET_LINUX"
-  rustup target add "$TARGET_WINDOWS"
 else
   #x86_64-unknown-linux-gnu
   TARGET="$TARGET_LINUX"
   OUT_DIR="${OUT_DIR}/linux"
-  rustup target remove "$TARGET_WINDOWS"
-  rustup target add "$TARGET_LINUX"
 fi
 
 mkdir -p "${OUT_DIR}"
